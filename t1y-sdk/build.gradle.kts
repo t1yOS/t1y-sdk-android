@@ -78,7 +78,7 @@ publishing {
                     "t1yOS Serverless Platform Kotlin/Android SDK — " +
                     "cloud database, metadata, and cloud functions client"
                 )
-                url.set("https://github.com/t1yOS/t1y-os-sdks")
+                url.set("https://github.com/t1yOS/t1y-sdk-android")
 
                 licenses {
                     license {
@@ -91,16 +91,16 @@ publishing {
                     developer {
                         id.set("t1yos")
                         name.set("华易云联（杭州）网络科技有限责任公司")
-                        email.set("t1yos@t1y.net")
+                        email.set("wwwanghua@outlook.com")
                         organization.set("华易云联")
                         organizationUrl.set("https://www.t1y.net")
                     }
                 }
 
                 scm {
-                    connection.set("scm:git:git://github.com/t1yOS/t1y-os-sdks.git")
-                    developerConnection.set("scm:git:ssh://github.com/t1yOS/t1y-os-sdks.git")
-                    url.set("https://github.com/t1yOS/t1y-os-sdks")
+                    connection.set("scm:git:git://github.com/t1yOS/t1y-sdk-android.git")
+                    developerConnection.set("scm:git:ssh://github.com/t1yOS/t1y-sdk-android.git")
+                    url.set("https://github.com/t1yOS/t1y-sdk-android")
                 }
             }
         }
@@ -108,18 +108,8 @@ publishing {
 
     repositories {
         maven {
-            name = "sonatype"
-            url = uri(
-                if (version.toString().endsWith("SNAPSHOT")) {
-                    "https://s01.oss.sonatype.org/content/repositories/snapshots/"
-                } else {
-                    "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
-                }
-            )
-            credentials {
-                username = project.findProperty("sonatypeUsername") as String? ?: ""
-                password = project.findProperty("sonatypePassword") as String? ?: ""
-            }
+            name = "localDir"
+            url = uri(layout.buildDirectory.dir("repo")) 
         }
     }
 }
