@@ -32,7 +32,7 @@ repositories {
 }
 
 dependencies {
-    implementation("net.t1y:t1y-sdk:1.0.0")
+    implementation("net.t1y:t1y-sdk:1.0.1")
 }
 ```
 

@@ -10,20 +10,34 @@ import javax.crypto.spec.SecretKeySpec
 object Hmac {
 
     /**
-     * Computes the HMAC-SHA256 of the given [message] using the given [secret]
+     * Computes the HMAC-SHA256 of the given [message] using the given [secretKeyBytes]
      * and returns it as a lowercase hexadecimal string.
      *
-     * @param secret The secret key.
+     * This overload accepts a [ByteArray] to avoid creating a String copy of the
+     * secret key. Prefer this for internal use when the key is already in bytes.
+     *
+     * @param secretKeyBytes The secret key as raw bytes.
      * @param message The message to sign.
      * @return 64-character lowercase hex HMAC-SHA256 digest.
      */
-    fun hmacSHA256Hex(secret: String, message: String): String {
+    fun hmacSHA256Hex(secretKeyBytes: ByteArray, message: String): String {
         val mac = Mac.getInstance("HmacSHA256")
-        val keySpec = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256")
+        val keySpec = SecretKeySpec(secretKeyBytes, "HmacSHA256")
         mac.init(keySpec)
         val result = mac.doFinal(message.toByteArray(Charsets.UTF_8))
         return result.joinToString("") { "%02x".format(it) }
     }
+
+    /**
+     * Computes the HMAC-SHA256 of the given [message] using the given [secret]
+     * and returns it as a lowercase hexadecimal string.
+     *
+     * @param secret The secret key as a String.
+     * @param message The message to sign.
+     * @return 64-character lowercase hex HMAC-SHA256 digest.
+     */
+    fun hmacSHA256Hex(secret: String, message: String): String =
+        hmacSHA256Hex(secret.toByteArray(Charsets.UTF_8), message)
 
     /**
      * Verifies that the given [signature] matches the HMAC-SHA256 of

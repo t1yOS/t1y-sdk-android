@@ -28,7 +28,7 @@ object Signer {
      * @param body Raw request body string (encrypted if safeMode, or plain JSON; empty string for GET).
      * @param appId Application ID.
      * @param timestamp Current Unix timestamp + offset.
-     * @param secretKey 32-character secret key.
+     * @param secretKeyBytes 32-byte secret key.
      * @return 64-character lowercase hex HMAC-SHA256 signature.
      */
     fun createSignature(
@@ -37,7 +37,7 @@ object Signer {
         body: String,
         appId: Int,
         timestamp: Long,
-        secretKey: String
+        secretKeyBytes: ByteArray
     ): String {
         // Compute SHA-256 of the body
         val bodyHash = Hash.sha256Hex(body)
@@ -52,7 +52,7 @@ object Signer {
         ).joinToString("\n")
 
         // Sign with HMAC-SHA256
-        return Hmac.hmacSHA256Hex(secretKey, message)
+        return Hmac.hmacSHA256Hex(secretKeyBytes, message)
     }
 
     /**

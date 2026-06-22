@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "net.t1y"
-version = "1.0.0"
+version = "1.0.1"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_1_8
@@ -70,7 +70,7 @@ publishing {
 
             groupId = "net.t1y"
             artifactId = "t1y-sdk"
-            version = "1.0.0"
+            version = "1.0.1"
 
             pom {
                 name.set("t1yOS SDK for Kotlin/Android")

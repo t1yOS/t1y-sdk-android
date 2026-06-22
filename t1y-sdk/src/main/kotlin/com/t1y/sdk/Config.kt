@@ -32,12 +32,18 @@ data class Config(
 /**
  * Internal mutable config that can be updated after construction
  * (e.g., by [T1YClient.init] which syncs offset and safeMode from the server).
+ *
+ * The secret key is stored as a [ByteArray] (rather than [String]) so that
+ * it can be explicitly zeroed in [clearSecretKey] to reduce the window of
+ * exposure in memory. The original [String] from [Config] is still subject
+ * to GC, but subsequent operations use the byte array directly, avoiding
+ * repeated `toByteArray()` allocations that each create a new copy.
  */
-internal data class MutableConfig(
+internal class MutableConfig(
     var baseUrl: String,
     var appId: Int,
     var apiKey: String,
-    var secretKey: String,
+    val secretKeyBytes: ByteArray,
     var version: Int,
     var isSafeMode: Boolean,
     var timeFormat: String,
@@ -47,10 +53,25 @@ internal data class MutableConfig(
         baseUrl = config.baseUrl,
         appId = config.appId,
         apiKey = config.apiKey,
-        secretKey = config.secretKey,
+        secretKeyBytes = config.secretKey.toByteArray(Charsets.UTF_8),
         version = config.version,
         isSafeMode = config.isSafeMode,
         timeFormat = config.timeFormat,
         offset = config.offset
     )
+
+    /**
+     * Backward-compatible accessor for callers that need the secret key
+     * as a [String]. Prefer [secretKeyBytes] for internal crypto operations
+     * to avoid creating a new String copy.
+     */
+    val secretKey: String get() = String(secretKeyBytes, Charsets.UTF_8)
+
+    /**
+     * Zeros out the secret key byte array to reduce the window of memory
+     * exposure. After calling this, the key is no longer usable.
+     */
+    fun clearSecretKey() {
+        secretKeyBytes.fill(0)
+    }
 }

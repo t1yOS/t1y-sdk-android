@@ -173,27 +173,24 @@ class CryptoTest {
             body = """{"name":"Alice"}""",
             appId = 1001,
             timestamp = 1700000000L,
-            secretKey = "a".repeat(32)
+            secretKeyBytes = "a".repeat(32).toByteArray(Charsets.UTF_8)
         )
         assertEquals(64, sig.length)
     }
 
     @Test
     fun `createSignature is deterministic`() {
-        val args = listOf(
-            "POST" to "/v5/classes/users",
-            """{"name":"Alice"}""" to 1001,
-            1700000000L to "a".repeat(32)
-        )
-        val a = Signer.createSignature("POST", "/v5/classes/users", """{"name":"Alice"}""", 1001, 1700000000L, "a".repeat(32))
-        val b = Signer.createSignature("POST", "/v5/classes/users", """{"name":"Alice"}""", 1001, 1700000000L, "a".repeat(32))
+        val keyBytes = "a".repeat(32).toByteArray(Charsets.UTF_8)
+        val a = Signer.createSignature("POST", "/v5/classes/users", """{"name":"Alice"}""", 1001, 1700000000L, keyBytes)
+        val b = Signer.createSignature("POST", "/v5/classes/users", """{"name":"Alice"}""", 1001, 1700000000L, keyBytes)
         assertEquals(a, b)
     }
 
     @Test
     fun `createSignature different methods produce different signatures`() {
-        val a = Signer.createSignature("GET", "/v5/classes/users", "", 1001, 1700000000L, "a".repeat(32))
-        val b = Signer.createSignature("POST", "/v5/classes/users", "", 1001, 1700000000L, "a".repeat(32))
+        val keyBytes = "a".repeat(32).toByteArray(Charsets.UTF_8)
+        val a = Signer.createSignature("GET", "/v5/classes/users", "", 1001, 1700000000L, keyBytes)
+        val b = Signer.createSignature("POST", "/v5/classes/users", "", 1001, 1700000000L, keyBytes)
         assertNotEquals(a, b)
     }
 

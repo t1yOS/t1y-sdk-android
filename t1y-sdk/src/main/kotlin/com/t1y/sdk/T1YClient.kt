@@ -27,6 +27,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.Closeable
 
 // Re-exports for convenience
 typealias T1YOS = T1YClient
@@ -52,13 +53,16 @@ typealias T1YOS = T1YClient
  * client.callFunc("hello")
  * ```
  */
-class T1YClient(config: Config) {
+class T1YClient(config: Config) : Closeable {
 
     /** Internal mutable configuration. Updated by [init] with server-synced values. */
     internal val mutableConfig = MutableConfig(config)
 
     /** Shared OkHttp client instance. */
     private val httpClient = createOkHttpClient()
+
+    /** Whether this client has been closed. */
+    private var closed = false
 
     /** Shared JSON instance with lenient parsing. */
     @PublishedApi internal val json = Json {
@@ -84,23 +88,21 @@ class T1YClient(config: Config) {
             val response = requestRaw("GET", "/init/${mutableConfig.appId}")
             val data = response.data
             if (data is JsonObject) {
-                mutableConfig.isSafeMode = data["is_safe_mode"]?.let {
-                    try {
-                        json.decodeFromJsonElement<InitResult>(data).isSafeMode
-                    } catch (e: Exception) {
-                        false
-                    }
-                } ?: false
-                val serverUnix = data["unix"]?.let {
-                    try {
-                        json.decodeFromJsonElement<InitResult>(data).unix
-                    } catch (e: Exception) {
-                        null
-                    }
+                // Parse InitResult once and reuse — but only apply fields
+                // that were actually present in the response
+                val initResult = try {
+                    json.decodeFromJsonElement<InitResult>(data)
+                } catch (e: Exception) {
+                    null
                 }
-                if (serverUnix != null) {
-                    mutableConfig.offset =
-                        (serverUnix - System.currentTimeMillis() / 1000).toInt()
+                if (initResult != null) {
+                    if (data.containsKey("is_safe_mode")) {
+                        mutableConfig.isSafeMode = initResult.isSafeMode
+                    }
+                    if (data.containsKey("unix")) {
+                        mutableConfig.offset =
+                            (initResult.unix - System.currentTimeMillis() / 1000).toInt()
+                    }
                 }
             }
         } catch (_: Exception) {
@@ -260,9 +262,8 @@ class T1YClient(config: Config) {
     ): String = withContext(Dispatchers.IO) {
         val safeMode = encryption ?: mutableConfig.isSafeMode
         val baseUrl = mutableConfig.baseUrl.trimEnd('/')
-        val urlBuilder = StringBuilder(baseUrl)
 
-        // Build request body and URL
+        // Build request body
         var bodyString: String? = null
         var rawBodyForSigning = ""
 
@@ -273,20 +274,22 @@ class T1YClient(config: Config) {
                 convertedParams.toJsonElement()
             )
             bodyString = if (safeMode) {
-                val keyBytes = mutableConfig.secretKey.toByteArray(Charsets.UTF_8)
-                val encrypted = AesGcm.encrypt(jsonBody, keyBytes)
+                val encrypted = AesGcm.encrypt(jsonBody, mutableConfig.secretKeyBytes)
                 rawBodyForSigning = encrypted
                 encrypted
             } else {
                 rawBodyForSigning = jsonBody
                 jsonBody
             }
-        } else if (method == "GET" && params is Map<*, *> && params.isNotEmpty()) {
+        }
+
+        // Build URL: baseUrl + path + queryString (query string after path)
+        val urlBuilder = StringBuilder(baseUrl)
+        urlBuilder.append(path)
+        if (method == "GET" && params is Map<*, *> && params.isNotEmpty()) {
             @Suppress("UNCHECKED_CAST")
             urlBuilder.append(params.toQueryString())
         }
-
-        urlBuilder.append(path)
 
         // Compute timestamp and signature
         val timestamp = Signer.getSafeTimestampLong(mutableConfig.offset)
@@ -299,7 +302,7 @@ class T1YClient(config: Config) {
             body = rawBodyForSigning,
             appId = mutableConfig.appId,
             timestamp = timestamp,
-            secretKey = mutableConfig.secretKey
+            secretKeyBytes = mutableConfig.secretKeyBytes
         )
 
         // Build OkHttp request
@@ -316,14 +319,21 @@ class T1YClient(config: Config) {
                 method,
                 bodyString.toRequestBody("application/json".toMediaType())
             )
-        } else {
-            // GET request or no body
+        } else if (method == "GET" || method == "DELETE" || method == "HEAD") {
+            // Methods that do not require a body
             requestBuilder.method(method, null)
+        } else {
+            // POST, PUT, PATCH with no params — send empty JSON body
+            requestBuilder.header("Content-Type", "application/json")
+            requestBuilder.method(
+                method,
+                "".toRequestBody("application/json".toMediaType())
+            )
         }
 
         // Execute and handle response
         val response = httpClient.executeSuspend(requestBuilder.build())
-        handleResponse(response, safeMode, mutableConfig.secretKey, mutableConfig.timeFormat)
+        handleResponse(response, safeMode, mutableConfig.secretKeyBytes, mutableConfig.timeFormat)
     }
 
     // ===== JSC EXTENSION NORMALIZATION =====
@@ -409,6 +419,22 @@ class T1YClient(config: Config) {
      */
     fun verifyHmacSHA256(secret: String, message: String, signature: String): Boolean =
         Hmac.verifyHmacSHA256(secret, message, signature)
+
+    /**
+     * Cleans up resources held by this client.
+     *
+     * After calling this method, the client should not be used.
+     * This method:
+     * - Shuts down the OkHttp dispatcher and evicts idle connections
+     * - Zeros out the secret key bytes in memory
+     */
+    override fun close() {
+        if (closed) return
+        closed = true
+        httpClient.dispatcher.executorService.shutdown()
+        httpClient.connectionPool.evictAll()
+        mutableConfig.clearSecretKey()
+    }
 
     // ===== DATABASE ACCESSOR =====
 

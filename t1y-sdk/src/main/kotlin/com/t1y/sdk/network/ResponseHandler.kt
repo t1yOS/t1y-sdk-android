@@ -24,7 +24,7 @@ private val responseJson = Json { ignoreUnknownKeys = true; encodeDefaults = tru
 internal fun handleResponse(
     response: Response,
     isSafeMode: Boolean,
-    secretKey: String,
+    secretKeyBytes: ByteArray,
     timeFormat: String
 ): String {
     val bodyString = response.body?.string() ?: ""
@@ -35,8 +35,7 @@ internal fun handleResponse(
             val jsonElement = responseJson.parseToJsonElement(bodyString)
             if (jsonElement is JsonObject && jsonElement.containsKey("j")) {
                 // Encrypted payload detected — decrypt it
-                val keyBytes = secretKey.toByteArray(Charsets.UTF_8)
-                AesGcm.decrypt(bodyString, keyBytes)
+                AesGcm.decrypt(bodyString, secretKeyBytes)
             } else {
                 bodyString
             }
